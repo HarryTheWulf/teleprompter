@@ -141,8 +141,8 @@ export default function ReaderApp() {
   /* ===== Time Estimation ===== */
   const estimatedSeconds = wpm
     ? Math.round(
-        (tokens.length / wpm) * 60 +
-          tokens.reduce(
+        (tokens.length / wpm) * 60
+          + tokens.reduce(
             (sum, t) =>
               sum + (t.type === "word" ? getExtraPauseMs(t) : 0),
             0
@@ -157,17 +157,22 @@ export default function ReaderApp() {
       ? estimatedSeconds <= targetSeconds
       : null;
 
+  const totalPauseSeconds = useMemo(() => tokens.reduce(
+    (sum, t) => sum + (t.type === "word" ? getExtraPauseMs(t) : 0),
+    0
+  ) / 1000, [tokens]);
+
+  const requiredWpm = targetSeconds > totalPauseSeconds
+    ? Math.round((tokens.length * 60) / (targetSeconds - totalPauseSeconds))
+    : null;
+
   /* ===== UI ===== */
   return (
     <div className="min-h-screen bg-slate-50 p-4 sm:p-8">
       <div className="max-w-4xl mx-auto space-y-8">
         <header className="text-center space-y-2">
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
-            Reading Speed Trainer
-          </h1>
-          <p className="text-slate-600">
-            Practice pacing and delivery with a live teleprompter
-          </p>
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Teleprompter</h1>
+          <p className="text-slate-600">Simple teleprompter for practicing your reading speed and delivery.</p>
         </header>
 
         {/* Script Input */}
@@ -184,6 +189,7 @@ export default function ReaderApp() {
         {/* Speed Measurement */}
         <section className="bg-white rounded-xl shadow-sm p-5 space-y-4">
           <h2 className="font-semibold text-lg">1. Measure Speed</h2>
+          <p>To calculate your reading speed, click the "Start Reading" button below and a passage will appear. Read the passage at your own pace and then click "Finish" and your Words Per Minute (WPM) will be calculated.</p>
 
           <div className="flex flex-col sm:flex-row gap-3">
             <button
@@ -202,6 +208,8 @@ export default function ReaderApp() {
               Finish
             </button>
           </div>
+
+          <p className={`${isMeasuring ? "block" : "hidden"} text-slate-600`}>Reading aloud is a skill that improves with awareness and consistency. When we slow down just enough to understand each word clearly, our confidence grows and our delivery becomes more natural. The goal is not to rush through sentences, but to guide the listener smoothly from one idea to the next.</p>
 
           <div className="flex items-center gap-3">
             <input
@@ -225,6 +233,29 @@ export default function ReaderApp() {
         {/* Teleprompter */}
         <section className="bg-white rounded-xl shadow-sm p-5 space-y-4">
           <h2 className="font-semibold text-lg">2. Teleprompter</h2>
+
+          <div
+            ref={containerRef}
+            className="h-[60vh] overflow-y-auto rounded-lg border bg-slate-100 p-4 text-lg leading-relaxed flex flex-wrap justify-between items-center"
+          >
+            {tokens.map((token, i) =>
+              token.type === "linebreak" ? (
+                <div key={i} className="w-full h-4" />
+              ) : (
+                <span
+                  key={i}
+                  ref={(el) => { wordRefs.current[i] = el; }}
+                  className={`mr-2 mb-2 px-1.5 py-0.5 rounded transition-colors ${
+                    i === activeIndex
+                      ? "bg-yellow-300 text-black"
+                      : "text-slate-700 opacity-40"
+                  }`}
+                >
+                  {token.value}
+                </span>
+              )
+            )}
+          </div>
 
           <div className="flex flex-col sm:flex-row gap-3">
             <button
@@ -250,29 +281,6 @@ export default function ReaderApp() {
               ■ Stop
             </button>
           </div>
-
-          <div
-            ref={containerRef}
-            className="h-[60vh] overflow-y-auto rounded-lg border bg-slate-100 p-4 text-lg leading-relaxed flex flex-wrap"
-          >
-            {tokens.map((token, i) =>
-              token.type === "linebreak" ? (
-                <div key={i} className="w-full h-4" />
-              ) : (
-                <span
-                  key={i}
-                  ref={(el) => { wordRefs.current[i] = el; }}
-                  className={`mr-2 mb-2 px-1.5 py-0.5 rounded transition-colors ${
-                    i === activeIndex
-                      ? "bg-yellow-300 text-black"
-                      : "text-slate-700 opacity-40"
-                  }`}
-                >
-                  {token.value}
-                </span>
-              )
-            )}
-          </div>
         </section>
 
         {/* Time Target */}
@@ -294,13 +302,20 @@ export default function ReaderApp() {
             />
 
             {meetsTarget !== null && (
-              <span
-                className={`font-medium ${
-                  meetsTarget ? "text-emerald-600" : "text-rose-600"
-                }`}
-              >
-                {meetsTarget ? "✔ Within target" : "✖ Too long"}
-              </span>
+              <div className="flex items-center gap-3">
+                <span
+                  className={`font-medium ${
+                    meetsTarget ? "text-emerald-600" : "text-rose-600"
+                  }`}
+                >
+                  {meetsTarget ? "✔ Within target" : "✖ Too long"}
+                </span>
+                {requiredWpm && (
+                  <span className="text-slate-600 text-sm">
+                    (Requires {requiredWpm} WPM)
+                  </span>
+                )}
+              </div>
             )}
           </div>
         </section>

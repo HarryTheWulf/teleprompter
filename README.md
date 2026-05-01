@@ -1,43 +1,40 @@
-# Astro Starter Kit: Minimal
+# Teleprompter
+
+A minimal web application built with **Astro**, **React**, and **Tailwind CSS** that helps you practice your reading pace and delivery using a live teleprompter.
+
+## Features
+
+- **Script Input**: Paste or type your script directly into the app.
+- **Speed Measurement**: Read your text while timing yourself to calculate your natural Words Per Minute (WPM) speed.
+- **Teleprompter**: Play back your script at your calculated WPM. The teleprompter highlights the active word and automatically scrolls. It also smartly adds small pauses for punctuation!
+- **Time Target estimation**: See an estimated read time based on your text length and WPM to ensure you meet target time constraints. If you set a time target, it will also calculate the exact WPM required to finish the passage in that time limit.
+
+## Getting Started
+
+First, ensure you have Node.js installed, then clone the repository and run the commands below:
 
 ```sh
-npm create astro@latest -- --template minimal
+# Install dependencies
+npm install
+
+# Start the development server
+npm run dev
 ```
 
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
+Your app should now be running at `http://localhost:4321`.
 
-## 🚀 Project Structure
+## Commands
 
-Inside of your Astro project, you'll see the following folders and files:
+All commands are run from the root of the project:
 
-```text
-/
-├── public/
-├── src/
-│   └── pages/
-│       └── index.astro
-└── package.json
-```
+| Command           | Action                                  |
+|-------------------|-----------------------------------------|
+| `npm install`     | Installs dependencies                   |
+| `npm run dev`     | Starts local dev server                 |
+| `npm run build`   | Build your production site to `./dist/` |
+| `npm run preview` | Preview your build locally              |
 
-Astro looks for `.astro` or `.md` files in the `src/pages/` directory. Each page is exposed as a route based on its file name.
+## TODO
 
-There's nothing special about `src/components/`, but that's where we like to put any Astro/React/Vue/Svelte/Preact components.
-
-Any static assets, like images, can be placed in the `public/` directory.
-
-## 🧞 Commands
-
-All commands are run from the root of the project, from a terminal:
-
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `npm install`             | Installs dependencies                            |
-| `npm run dev`             | Starts local dev server at `localhost:4321`      |
-| `npm run build`           | Build your production site to `./dist/`          |
-| `npm run preview`         | Preview your build locally, before deploying     |
-| `npm run astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `npm run astro -- --help` | Get help using the Astro CLI                     |
-
-## 👀 Want to learn more?
-
-Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+- [ ] Add a feature to save scripts to local storage
+- [ ] Scroll the prompter so that the current active line is centred.
