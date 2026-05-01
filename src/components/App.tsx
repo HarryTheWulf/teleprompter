@@ -2,26 +2,27 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 type WordToken = { type: "word"; value: string };
 type LineBreakToken = { type: "linebreak" };
-type Token =
-  | WordToken
-  | LineBreakToken;
+type Token = WordToken | LineBreakToken;
 
 export default function ReaderApp() {
-  const [text, setText] = useState("Reading aloud is a skill that improves with awareness and consistency. When we slow down just enough to understand each word clearly, our confidence grows and our delivery becomes more natural. The goal is not to rush through sentences, but to guide the listener smoothly from one idea to the next.");
+  const [text, setText] = useState(
+    "Reading aloud is a skill that improves with awareness and consistency. When we slow down just enough to understand each word clearly, our confidence grows and our delivery becomes more natural. The goal is not to rush through sentences, but to guide the listener smoothly from one idea to the next."
+  );
+
   const [wpm, setWpm] = useState<number | null>(null);
 
-  const tokens = useMemo<Array<Token>>(() => {
+  /* ===== Tokenisation ===== */
+  const tokens = useMemo<Token[]>(() => {
     return text
       .split(/\n+/)
-      .flatMap((line, lineIndex, lines) => {
+      .flatMap((line, index, lines) => {
         const words = line
           .trim()
           .split(/\s+/)
           .filter(Boolean)
-          .map((w) => ({ type: "word", value: w } as Token));
+          .map((value) => ({ type: "word", value } as Token));
 
-        // Add a line break token between paragraphs
-        if (lineIndex < lines.length - 1) {
+        if (index < lines.length - 1) {
           words.push({ type: "linebreak" });
         }
 
@@ -29,51 +30,45 @@ export default function ReaderApp() {
       });
   }, [text]);
 
-  // ===== Speed training =====
+  /* ===== Speed Measurement ===== */
   const [startTime, setStartTime] = useState<number | null>(null);
-  const [endTime, setEndTime] = useState<number | null>(null);
   const [isMeasuring, setIsMeasuring] = useState(false);
 
   const startTiming = () => {
     setStartTime(Date.now());
-    setEndTime(null);
     setIsMeasuring(true);
   };
 
   const endTiming = () => {
     if (!startTime) return;
-    const end = Date.now();
-    setEndTime(end);
+    const elapsedMinutes = (Date.now() - startTime) / 60000;
+    setWpm(Math.round(tokens.length / elapsedMinutes));
     setIsMeasuring(false);
-
-    const elapsedMinutes = (end - startTime) / 60000;
-    const calculatedWpm = Math.round(tokens.length / elapsedMinutes);
-    setWpm(calculatedWpm);
   };
 
-  // ===== Teleprompter =====
+  /* ===== Teleprompter ===== */
   const [isPlaying, setIsPlaying] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
-  const intervalRef = useRef<number | null>(null);
-
-  const startTeleprompter = () => {
-    if (!wpm) return;
-    setActiveIndex(0);
-    setIsPlaying(true);
-  };
-
-  const stopTeleprompter = () => {
-    setIsPlaying(false);
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-  };
+  const timeoutRef = useRef<number | null>(null);
 
   const getExtraPauseMs = (word: WordToken) => {
     if (/[.!?]$/.test(word.value)) return 500;
     if (/[,;:]$/.test(word.value)) return 250;
     return 0;
+  };
+
+  const startTeleprompter = () => {
+    if (!wpm) return;
+    setIsPlaying(true);
+  };
+
+  const pauseTeleprompter = () => {
+    setIsPlaying(false);
+  };
+
+  const stopTeleprompter = () => {
+    setIsPlaying(false);
+    setActiveIndex(0);
   };
 
   useEffect(() => {
@@ -91,44 +86,39 @@ export default function ReaderApp() {
         return;
       }
 
-      const baseMs = 60000 / wpm;
-      const currentToken = tokens[index];
-      const extraPause = currentToken.type === 'word'
-        ? getExtraPauseMs(currentToken)
-        : 0;
-      const delay = baseMs + extraPause;
+      const baseDelay = 60000 / wpm;
+      const token = tokens[index];
+      const extraPause =
+        token.type === "word" ? getExtraPauseMs(token) : 0;
 
-      intervalRef.current = window.setTimeout(() => {
+      timeoutRef.current = window.setTimeout(() => {
         runWord(index + 1);
-      }, delay);
+      }, baseDelay + extraPause);
     };
 
-    runWord(0);
+    runWord(activeIndex);
 
     return () => {
       cancelled = true;
-      if (intervalRef.current) {
-        clearTimeout(intervalRef.current);
-        intervalRef.current = null;
+      if (timeoutRef.current !== null) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
       }
     };
-  }, [isPlaying, wpm, tokens]);
+  }, [isPlaying, wpm, tokens, activeIndex]);
 
-
-  // ===== Time estimation =====
+  /* ===== Time Estimation ===== */
   const estimatedSeconds = wpm
     ? Math.round(
-      (
-        // Base word timing
         (tokens.length / wpm) * 60 +
-        // Extra punctuation pauses
-        tokens.reduce(
-          (sum, word) => sum + (word.type === 'word' ? getExtraPauseMs(word) : 0),
-          0
-        ) / 1000
+          tokens.reduce(
+            (sum, t) =>
+              sum + (t.type === "word" ? getExtraPauseMs(t) : 0),
+            0
+          ) /
+            1000
       )
-    )
-  : null;
+    : null;
 
   const [targetSeconds, setTargetSeconds] = useState(0);
 
@@ -137,140 +127,149 @@ export default function ReaderApp() {
       ? estimatedSeconds <= targetSeconds
       : null;
 
+  /* ===== UI ===== */
   return (
-    <div className="max-w-3xl mx-auto p-6 space-y-8">
-      <h1 className="text-3xl font-bold">Reading Speed Trainer</h1>
+    <div className="min-h-screen bg-slate-50 p-4 sm:p-8">
+      <div className="max-w-4xl mx-auto space-y-8">
+        <header className="text-center space-y-2">
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
+            Reading Speed Trainer
+          </h1>
+          <p className="text-slate-600">
+            Practice pacing and delivery with a live teleprompter
+          </p>
+        </header>
 
-      {/* Text Input */}
-      <textarea
-        className="w-full h-40 p-4 border rounded-md"
-        placeholder="Paste or type your script here..."
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-      />
-
-      {/* Speed Trainer */}
-      <div className="space-y-2">
-        <h2 className="text-xl font-semibold">1. Measure Reading Speed</h2>
-        <div className="flex gap-2">
-          <button
-            onClick={startTiming}
-            className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
-            disabled={isMeasuring}
-          >
-            Start
-          </button>
-          <button
-            onClick={endTiming}
-            className="px-4 py-2 bg-green-600 text-white rounded disabled:opacity-50"
-            disabled={!isMeasuring}
-          >
-            End
-          </button>
-        </div>
-        <div className="space-y-2">
-          <h3 className="font-medium">WPM</h3>
-          <input
-            type="number"
-            min={50}
-            max={600}
-            step={10}
-            value={wpm ?? 0}
-            onChange={(e) => setWpm(Number(e.target.value))}
-            className="border p-2 rounded w-40"
+        {/* Script Input */}
+        <section className="bg-white rounded-xl shadow-sm p-5 space-y-3">
+          <h2 className="font-semibold text-lg">Script</h2>
+          <textarea
+            className="w-full min-h-45 resize-y rounded-lg border border-slate-200 p-4 focus:ring-2 focus:ring-blue-500 outline-none"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Paste or type your script here…"
           />
+        </section>
 
-          {!wpm && (
-            <p className="text-sm text-gray-600">
-              Used when no measured WPM is available
+        {/* Speed Measurement */}
+        <section className="bg-white rounded-xl shadow-sm p-5 space-y-4">
+          <h2 className="font-semibold text-lg">1. Measure Speed</h2>
+
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              onClick={startTiming}
+              disabled={isMeasuring}
+              className="flex-1 rounded-lg bg-blue-600 py-3 text-white font-medium disabled:opacity-50"
+            >
+              Start Reading
+            </button>
+
+            <button
+              onClick={endTiming}
+              disabled={!isMeasuring}
+              className="flex-1 rounded-lg bg-emerald-600 py-3 text-white font-medium disabled:opacity-50"
+            >
+              Finish
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <input
+              type="number"
+              min={50}
+              step={10}
+              value={wpm ?? ""}
+              onChange={(e) => setWpm(Number(e.target.value))}
+              className="w-28 rounded-lg border p-2 text-center"
+            />
+            <span className="text-slate-600">WPM</span>
+          </div>
+
+          {wpm && (
+            <p className="text-sm">
+              Your speed: <strong>{wpm} WPM</strong>
             </p>
           )}
-        </div>
-        {wpm && (
-          <p className="text-sm">
-            Your reading speed: <strong>{wpm} WPM</strong>
-          </p>
-        )}
-      </div>
+        </section>
 
-      {/* Teleprompter */}
-      <div className="space-y-2">
-        <h2 className="text-xl font-semibold">2. Teleprompter</h2>
-        <div className="flex gap-2">
-          <button
-            disabled={!wpm}
-            onClick={startTeleprompter}
-            className="px-4 py-2 bg-purple-600 text-white rounded disabled:opacity-50"
-          >
-            Start
-          </button>
+        {/* Teleprompter */}
+        <section className="bg-white rounded-xl shadow-sm p-5 space-y-4">
+          <h2 className="font-semibold text-lg">2. Teleprompter</h2>
 
-          <button
-            disabled={!isPlaying}
-            onClick={stopTeleprompter}
-            className="px-4 py-2 bg-gray-600 text-white rounded disabled:opacity-50"
-          >
-            Stop
-          </button>
-        </div>
-
-        <div className="p-4 border rounded text-lg leading-loose flex flex-wrap">
-          {tokens.map((token, i) => {
-            if (token.type === "linebreak") {
-              return (
-                <div key={i} className="w-full h-4" />
-              );
-            }
-
-            return (
-              <span
-                key={i}
-                className={`
-                  inline-flex items-center
-                  px-1 py-0.5
-                  mr-2 mb-2
-                  rounded
-                  bg-transparent
-                  transition-colors
-                  ${i === activeIndex ? "bg-yellow-300" : ""}
-                `}
-              >
-                {token.value}
-              </span>
-            );
-          })}
-        </div>
-        ``
-      </div>
-
-      {/* Time Estimation */}
-      <div className="space-y-2">
-        <h2 className="text-xl font-semibold">3. Time Estimation</h2>
-
-        {estimatedSeconds && (
-          <p>
-            Estimated reading time:{" "}
-            <strong>{estimatedSeconds}s</strong>
-          </p>
-        )}
-
-        <div className="flex items-center gap-2">
-          <input
-            type="number"
-            placeholder="Target seconds"
-            className="border p-2 rounded w-40"
-            onChange={(e) => setTargetSeconds(Number(e.target.value))}
-          />
-          {meetsTarget !== null && (
-            <span
-              className={`font-bold ${
-                meetsTarget ? "text-green-600" : "text-red-600"
-              }`}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              disabled={!wpm || isPlaying}
+              onClick={startTeleprompter}
+              className="flex-1 rounded-lg bg-purple-600 py-3 text-white font-medium disabled:opacity-50"
             >
-              {meetsTarget ? "✔ Within target" : "✖ Too long"}
-            </span>
+              ▶ Start
+            </button>
+
+            <button
+              disabled={!isPlaying}
+              onClick={pauseTeleprompter}
+              className="flex-1 rounded-lg bg-yellow-500 py-3 text-white font-medium disabled:opacity-50"
+            >
+              ⏸ Pause
+            </button>
+
+            <button
+              onClick={stopTeleprompter}
+              className="flex-1 rounded-lg bg-slate-700 py-3 text-white font-medium"
+            >
+              ■ Stop
+            </button>
+          </div>
+
+          <div className="rounded-lg border bg-slate-100 p-4 text-lg leading-relaxed flex flex-wrap">
+            {tokens.map((token, i) =>
+              token.type === "linebreak" ? (
+                <div key={i} className="w-full h-4" />
+              ) : (
+                <span
+                  key={i}
+                  className={`mr-2 mb-2 px-1.5 py-0.5 rounded transition-colors ${
+                    i === activeIndex
+                      ? "bg-yellow-300 text-black"
+                      : "text-slate-700 opacity-40"
+                  }`}
+                >
+                  {token.value}
+                </span>
+              )
+            )}
+          </div>
+        </section>
+
+        {/* Time Target */}
+        <section className="bg-white rounded-xl shadow-sm p-5 space-y-3">
+          <h2 className="font-semibold text-lg">3. Time Target</h2>
+
+          {estimatedSeconds !== null && (
+            <p>
+              Estimated time: <strong>{estimatedSeconds}s</strong>
+            </p>
           )}
-        </div>
+
+          <div className="flex items-center gap-3 flex-wrap">
+            <input
+              type="number"
+              placeholder="Target (sec)"
+              className="w-32 rounded-lg border p-2"
+              onChange={(e) => setTargetSeconds(Number(e.target.value))}
+            />
+
+            {meetsTarget !== null && (
+              <span
+                className={`font-medium ${
+                  meetsTarget ? "text-emerald-600" : "text-rose-600"
+                }`}
+              >
+                {meetsTarget ? "✔ Within target" : "✖ Too long"}
+              </span>
+            )}
+          </div>
+        </section>
       </div>
     </div>
   );
