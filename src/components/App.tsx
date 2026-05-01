@@ -51,6 +51,9 @@ export default function ReaderApp() {
   const [activeIndex, setActiveIndex] = useState(0);
   const timeoutRef = useRef<number | null>(null);
 
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const wordRefs = useRef<Array<HTMLSpanElement | null>>([]);
+
   const getExtraPauseMs = (word: WordToken) => {
     if (/[.!?]$/.test(word.value)) return 500;
     if (/[,;:]$/.test(word.value)) return 250;
@@ -69,8 +72,10 @@ export default function ReaderApp() {
   const stopTeleprompter = () => {
     setIsPlaying(false);
     setActiveIndex(0);
+    containerRef.current?.scrollTo({ top: 0 });
   };
 
+  /* ===== Teleprompter Playback ===== */
   useEffect(() => {
     if (!isPlaying || !wpm) return;
 
@@ -107,6 +112,32 @@ export default function ReaderApp() {
     };
   }, [isPlaying, wpm, tokens, activeIndex]);
 
+  useEffect(() => {
+    if (!isPlaying) return;
+
+    const container = containerRef.current;
+    const el = wordRefs.current[activeIndex];
+    if (!container || !el) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+
+    const topDiff = elRect.top - containerRect.top;
+    const bottomDiff = elRect.bottom - containerRect.bottom;
+
+    if (topDiff < 0) {
+      container.scrollBy({
+        top: topDiff - container.clientHeight * 0.25,
+        behavior: "smooth",
+      });
+    } else if (bottomDiff > 0) {
+      container.scrollBy({
+        top: bottomDiff + container.clientHeight * 0.25,
+        behavior: "smooth",
+      });
+    }
+  }, [activeIndex, isPlaying]);
+
   /* ===== Time Estimation ===== */
   const estimatedSeconds = wpm
     ? Math.round(
@@ -115,8 +146,7 @@ export default function ReaderApp() {
             (sum, t) =>
               sum + (t.type === "word" ? getExtraPauseMs(t) : 0),
             0
-          ) /
-            1000
+          ) / 1000
       )
     : null;
 
@@ -221,13 +251,17 @@ export default function ReaderApp() {
             </button>
           </div>
 
-          <div className="rounded-lg border bg-slate-100 p-4 text-lg leading-relaxed flex flex-wrap">
+          <div
+            ref={containerRef}
+            className="h-[60vh] overflow-y-auto rounded-lg border bg-slate-100 p-4 text-lg leading-relaxed flex flex-wrap"
+          >
             {tokens.map((token, i) =>
               token.type === "linebreak" ? (
                 <div key={i} className="w-full h-4" />
               ) : (
                 <span
                   key={i}
+                  ref={(el) => { wordRefs.current[i] = el; }}
                   className={`mr-2 mb-2 px-1.5 py-0.5 rounded transition-colors ${
                     i === activeIndex
                       ? "bg-yellow-300 text-black"
